@@ -108,7 +108,8 @@ class _GetPageState extends State<GetPage>{
 @override
 Widget build(BuildContext context){
   return Scaffold(appBar: AppBar(title: const Text('画像選択'),),
-    body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [
+    body: SafeArea( child: 
+    Center(child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [
       if(_inImage==null)
         const Text('画像を選択してください')
 
@@ -167,6 +168,8 @@ Widget build(BuildContext context){
         child: const Text('画像選択'),
       ),  
 
+      const SizedBox(height: 40),
+
      
 
       
@@ -175,6 +178,7 @@ Widget build(BuildContext context){
 
     ),
     ),
+    )
     );
 }
 }
