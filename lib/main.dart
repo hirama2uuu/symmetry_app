@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'dart:typed_data';
+import 'package:gal/gal.dart';
 
 
 void main(){
@@ -48,6 +49,8 @@ class _GetPageState extends State<GetPage>{
   }
 
   Future<void> _getImage()async{
+    if(_inImage==null)return;
+
     final bytesBox = await File(_inImage!.path).readAsBytes();
     final img.Image? imageO = img.decodeImage(bytesBox);
     
@@ -62,9 +65,25 @@ class _GetPageState extends State<GetPage>{
     }
       
     setState((){_outImage = img.encodeJpg(imageO);});
-      
-    
-    
+  }
+
+  Future<void> _saveImage()async{
+    if(_outImage==null){
+      return;
+    }
+
+    await Gal.putImageBytes(_outImage!,name: 'symmetry.jpg');
+
+
+    if(!mounted)return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("保存しました"),
+      )
+    );
+
+
 
   }
 
@@ -91,6 +110,15 @@ Widget build(BuildContext context){
         onPressed: _selectImage,
         child: const Text('画像選択'),
       ),  
+
+      if(_outImage != null)
+        ElevatedButton(
+          onPressed: _saveImage,
+          child: const Text('保存'),
+        )
+
+      
+      
     ],
 
     ),
