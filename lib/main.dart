@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
+import 'dart:typed_data';
 
 
 void main(){
@@ -28,6 +30,7 @@ class GetPage extends StatefulWidget{
 class _GetPageState extends State<GetPage>{
   XFile? _inImage;
   final ImagePicker _picker = ImagePicker();
+  Uint8List? _outImage;
 
 
   Future<void> _selectImage() async{
@@ -38,7 +41,31 @@ class _GetPageState extends State<GetPage>{
     }
 
     setState((){
-      _inImage =image;});
+      _inImage =image;
+      _outImage = null;
+      });
+    await _getImage();
+  }
+
+  Future<void> _getImage()async{
+    final bytesBox = await File(_inImage!.path).readAsBytes();
+    final img.Image? imageO = img.decodeImage(bytesBox);
+    
+    if(imageO==null)return;
+    
+    for(int i=0;i<imageO.height;i++){
+      for(int j=0; j<imageO.width~/2;j++){
+        final p =imageO.getPixel(j, i);
+        imageO.setPixel(imageO.width-1-j,i,p);
+          
+      }
+    }
+      
+    setState((){_outImage = img.encodeJpg(imageO);});
+      
+    
+    
+
   }
 
 @override
@@ -47,8 +74,18 @@ Widget build(BuildContext context){
     body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [
       if(_inImage==null)
         const Text('画像を選択してください')
+
+      else if(_outImage==null)
+        const Text('画像を加工中です')
+        
       else
-        Image.file(File(_inImage!.path),),
+        Image.memory(_outImage!),
+        
+        //if,elseここまで
+
+
+
+
       
       ElevatedButton(
         onPressed: _selectImage,
