@@ -5,301 +5,331 @@ import 'package:image/image.dart' as img;
 import 'package:gal/gal.dart';
 import 'package:flutter/foundation.dart';
 
-enum Side{
-  left,
-  right,
-}
-enum ImageError {
-  fileRead,
-  decode,
-  change,
-  encode,
-}
+enum Side { left, right }
 
-enum Status{
-  success,
-  failed,
-  waiting,
-  noselect,
+enum ImageError { fileRead, decode, change, encode }
 
-}
+enum Status { success, failed, waiting, noselect }
 
- Future<((Uint8List,Uint8List,)?,ImageError?)> _getImageLogic(String path)async{
+Future<((Uint8List, Uint8List)?, ImageError?)> _getImageLogic(
+  String path,
+) async {
   final Uint8List bytesBox;
-   
-  try{
+
+  try {
     bytesBox = await File(path).readAsBytes();
-  }catch(eRead){
-    return (null,ImageError.fileRead);
+  } catch (eRead) {
+    return (null, ImageError.fileRead);
   }
 
   final img.Image? imageO;
 
-  try{
+  try {
     imageO = img.decodeImage(bytesBox);
-  }catch(eDecode){
-    return (null,ImageError.decode);
+  } catch (eDecode) {
+    return (null, ImageError.decode);
   }
-    
-  if(imageO==null)return (null,ImageError.decode);
-    
+
+  if (imageO == null) return (null, ImageError.decode);
+
   final img.Image imageOl;
   final img.Image imageOr;
 
-  try{
+  try {
     imageOl = img.Image.from(imageO);
     imageOr = img.Image.from(imageO);
-    for(int i=0;i<imageO.height;i++){
-      for(int j=0; j<imageO.width~/2;j++){
-        final tmpl =imageO.getPixel(j, i);
-        imageOl.setPixel(imageO.width-1-j,i,tmpl);
-        final tmpr =imageO.getPixel(imageO.width-1-j, i);
-        imageOr.setPixel(j,i,tmpr);
-          
+    for (int i = 0; i < imageO.height; i++) {
+      for (int j = 0; j < imageO.width ~/ 2; j++) {
+        final tmpl = imageO.getPixel(j, i);
+        imageOl.setPixel(imageO.width - 1 - j, i, tmpl);
+        final tmpr = imageO.getPixel(imageO.width - 1 - j, i);
+        imageOr.setPixel(j, i, tmpr);
       }
     }
-  }catch(eChange){
-    return (null,ImageError.change);
+  } catch (eChange) {
+    return (null, ImageError.change);
   }
   final Uint8List _outl;
   final Uint8List _outr;
-  try{
+  try {
     _outl = img.encodeJpg(imageOl);
     _outr = img.encodeJpg(imageOr);
-  }catch(eEncode){
-    return(null,ImageError.encode);
+  } catch (eEncode) {
+    return (null, ImageError.encode);
   }
 
-  return ((_outl,_outr),null);
+  return ((_outl, _outr), null);
 }
 
-void main(){
+void main() {
   runApp(const GetImage());
 }
 
-class GetImage extends StatelessWidget{
+class GetImage extends StatelessWidget {
   const GetImage({super.key});
-  
+
   @override
-  Widget build(BuildContext context){
-    return const MaterialApp(
-      home:GetPage(),
-    );
+  Widget build(BuildContext context) {
+    return const MaterialApp(home: GetPage());
   }
 }
 
-class GetPage extends StatefulWidget{
+class GetPage extends StatefulWidget {
   const GetPage({super.key});
 
   @override
   State<GetPage> createState() => _GetPageState();
 }
 
-class _GetPageState extends State<GetPage>{
+class _GetPageState extends State<GetPage> {
   XFile? _inImage;
   final ImagePicker _picker = ImagePicker();
-  Uint8List? _outImagel,_outImager;
+  Uint8List? _outImagel, _outImager;
   Status status = Status.noselect;
-  
 
+  Future<void> _selectImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
 
-  Future<void> _selectImage() async{
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery,);
-  
-    if(image==null){
-      
+    if (image == null) {
       return;
     }
     if (!mounted) return;
-    setState((){
-      _inImage =image;
+    setState(() {
+      _inImage = image;
       _outImagel = null;
       _outImager = null;
       status = Status.waiting;
-      });
+    });
     await _getImage();
   }
 
- 
-  Future<void> _getImage()async{
-    if(_inImage==null)return;
+  Future<void> _getImage() async {
+    if (_inImage == null) return;
 
-    final tmp =_inImage!.path;
+    final tmp = _inImage!.path;
 
-    final result =await compute(_getImageLogic,_inImage!.path);
+    final result = await compute(_getImageLogic, _inImage!.path);
     if (!mounted) return;
-    if(tmp !=_inImage!.path)return;
-    
-    final (images,tmpf) =result;
-    if(tmpf != null)setState(()=>status = Status.failed);
+    if (tmp != _inImage!.path) return;
 
-    
-    if(result == (null,ImageError.decode)){
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("画像読み込みエラー"),
-        ),
-      );
-    }
-    if(result == (null,ImageError.fileRead)){
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("画像を取得できませんでした"),
-        ),
-      );
-    }
-    if(result == (null,ImageError.encode)){
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("画像を出力できませんでした"),
-        ),
-      );
-    }
-    if(result == (null,ImageError.change)){
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("画像処理に失敗しました"),
-        ),
-      );
-    }
-    
+    final (images, tmpf) = result;
+    if (tmpf != null) setState(() => status = Status.failed);
 
-    
-    if(images ==null)return;
-    final (tmpl,tmpr) = images;
-    
+    if (result == (null, ImageError.decode)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("画像読み込みエラー")));
+    }
+    if (result == (null, ImageError.fileRead)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("画像を取得できませんでした")));
+    }
+    if (result == (null, ImageError.encode)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("画像を出力できませんでした")));
+    }
+    if (result == (null, ImageError.change)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("画像処理に失敗しました")));
+    }
 
-   
-   
+    if (images == null) return;
+    final (tmpl, tmpr) = images;
+
     setState(() {
-      _outImagel =tmpl;
-      _outImager = tmpr;    
-      status = Status.success;  
+      _outImagel = tmpl;
+      _outImager = tmpr;
+      status = Status.success;
     });
-    
   }
 
-  Future<void> _saveImage(Side a)async{
+  Future<void> _saveImage(Side a) async {
     if (_outImagel == null && _outImager == null) {
       return;
     }
-  
-    try{
-      if(_outImagel!=null && a==Side.left){
-      await Gal.putImageBytes(_outImagel!,name: 'symmetryL.jpg');
+
+    try {
+      if (_outImagel != null && a == Side.left) {
+        await Gal.putImageBytes(_outImagel!, name: 'symmetryL.jpg');
       }
-    }catch(eLdownload){
+    } catch (eLdownload) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("保存に失敗しました"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("保存に失敗しました")));
       return;
     }
 
-    try{
-      if(_outImager !=null && a==Side.right){
-        await Gal.putImageBytes(_outImager!,name: 'symmetryR.jpg');
+    try {
+      if (_outImager != null && a == Side.right) {
+        await Gal.putImageBytes(_outImager!, name: 'symmetryR.jpg');
       }
-    }catch(eRdownload){
+    } catch (eRdownload) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("保存に失敗しました"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("保存に失敗しました")));
 
       return;
     }
 
-    if(!mounted)return;
+    if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("保存しました"),
-      )
-    );
-
-
-
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("保存しました")));
   }
 
-@override
-Widget build(BuildContext context){
-  return Scaffold(appBar: AppBar(title: const Text('画像選択'),),
-    body: SafeArea( child: 
-    Center(child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [
-      if(status == Status.noselect)
-        const Text('画像を選択してください')
-
-      else if(status == Status.waiting)
-        const Text('画像を加工中です')
-      else if(status == Status.failed)  
-        const Text('画像加工に失敗しました')
-      else if(status == Status.success)
-        Expanded(
-          child: Row(
-            children:[
-              Expanded(
-                child: Column(
-                  children:[
-                    Expanded(child: Image.memory(
-                      _outImagel!,
-                      fit: BoxFit.contain,
-                      ),),
-                    Text("左反転画像"),
-                    if(_outImagel !=null)
-                      ElevatedButton(
-                        onPressed: () => _saveImage(Side.left),
-                        child: const Text('保存'),
-                      ),
-                  ]
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 218, 233, 255),
+      appBar: AppBar(
+        title: const Text('シンメトリー画像作成'),
+        backgroundColor: const Color.fromARGB(255, 218, 233, 255),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (status == Status.noselect)
+                const Text(
+                  '画像を選択してください',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 )
+              else if (status == Status.waiting)
+                const Text(
+                  '画像を加工中です',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                )
+              else if (status == Status.failed)
+                const Text(
+                  '画像加工に失敗しました',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                )
+              else if (status == Status.success)
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: Image.memory(
+                                  _outImagel!,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                              Text(
+                                "左反転画像",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (_outImagel != null)
+                                ElevatedButton(
+                                  onPressed: () => _saveImage(Side.left),
+                                  child: const Text(
+                                    '保存',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color.fromARGB(
+                                      255,
+                                      194,
+                                      218,
+                                      253,
+                                    ),
+                                    foregroundColor: const Color.fromARGB(
+                                      255,
+                                      0,
+                                      0,
+                                      0,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: Image.memory(
+                                  _outImager!,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                              Text(
+                                "右反転画像",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (_outImager != null)
+                                ElevatedButton(
+                                  onPressed: () => _saveImage(Side.right),
+                                  child: const Text(
+                                    '保存',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color.fromARGB(
+                                      255,
+                                      194,
+                                      218,
+                                      253,
+                                    ),
+                                    foregroundColor: Colors.black,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ), //
+
+              //if,elseここまで
+              const SizedBox(height: 20),
+
+              ElevatedButton(
+                onPressed: _selectImage,
+                child: const Text(
+                  '画像選択',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 194, 218, 253),
+                  foregroundColor: Colors.black,
+                ),
               ),
 
-              Expanded(
-                child: Column(
-                  children:[
-                    Expanded(child: Image.memory(
-                      _outImager!,
-                      fit: BoxFit.contain,
-                      ),),
-                    Text("右反転画像"),
-                    if(_outImager !=null)
-                      ElevatedButton(
-                        onPressed: ()=> _saveImage(Side.right),
-                        child: const Text('保存'),
-                      ),
-                ]
-              )
-            ),
-          ]
-        )),//
-        
-        
-        //if,elseここまで
-
-
-
-
-      
-      ElevatedButton(
-        onPressed: _selectImage,
-        child: const Text('画像選択'),
-      ),  
-
-      const SizedBox(height: 40),
-
-     
-
-      
-      
-    ],
-
-    ),
-    ),
-    )
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
     );
-}
+  }
 }
