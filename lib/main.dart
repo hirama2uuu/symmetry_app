@@ -2,14 +2,76 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
-import 'dart:typed_data';
 import 'package:gal/gal.dart';
+import 'package:flutter/foundation.dart';
 
 enum Side{
   left,
   right,
 }
+enum ImageError {
+  fileRead,
+  decode,
+  change,
+  encode,
+}
 
+enum Status{
+  success,
+  failed,
+  waiting,
+  noselect,
+
+}
+
+ Future<((Uint8List,Uint8List,)?,ImageError?)> _getImageLogic(String path)async{
+  final Uint8List bytesBox;
+   
+  try{
+    bytesBox = await File(path).readAsBytes();
+  }catch(eRead){
+    return (null,ImageError.fileRead);
+  }
+
+  final img.Image? imageO;
+
+  try{
+    imageO = img.decodeImage(bytesBox);
+  }catch(eDecode){
+    return (null,ImageError.decode);
+  }
+    
+  if(imageO==null)return (null,ImageError.decode);
+    
+  final img.Image imageOl;
+  final img.Image imageOr;
+
+  try{
+    imageOl = img.Image.from(imageO);
+    imageOr = img.Image.from(imageO);
+    for(int i=0;i<imageO.height;i++){
+      for(int j=0; j<imageO.width~/2;j++){
+        final tmpl =imageO.getPixel(j, i);
+        imageOl.setPixel(imageO.width-1-j,i,tmpl);
+        final tmpr =imageO.getPixel(imageO.width-1-j, i);
+        imageOr.setPixel(j,i,tmpr);
+          
+      }
+    }
+  }catch(eChange){
+    return (null,ImageError.change);
+  }
+  final Uint8List _outl;
+  final Uint8List _outr;
+  try{
+    _outl = img.encodeJpg(imageOl);
+    _outr = img.encodeJpg(imageOr);
+  }catch(eEncode){
+    return(null,ImageError.encode);
+  }
+
+  return ((_outl,_outr),null);
+}
 
 void main(){
   runApp(const GetImage());
@@ -37,60 +99,118 @@ class _GetPageState extends State<GetPage>{
   XFile? _inImage;
   final ImagePicker _picker = ImagePicker();
   Uint8List? _outImagel,_outImager;
+  Status status = Status.noselect;
+  
 
 
   Future<void> _selectImage() async{
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery,);
   
     if(image==null){
+      
       return;
     }
-
+    if (!mounted) return;
     setState((){
       _inImage =image;
       _outImagel = null;
       _outImager = null;
+      status = Status.waiting;
       });
     await _getImage();
   }
 
+ 
   Future<void> _getImage()async{
     if(_inImage==null)return;
 
-    final bytesBox = await File(_inImage!.path).readAsBytes();
-    final img.Image? imageO = img.decodeImage(bytesBox);
+    final tmp =_inImage!.path;
+
+    final result =await compute(_getImageLogic,_inImage!.path);
+    if (!mounted) return;
+    if(tmp !=_inImage!.path)return;
     
-    if(imageO==null)return;
+    final (images,tmpf) =result;
+    if(tmpf != null)setState(()=>status = Status.failed);
+
     
-  final imageOl = img.Image.from(imageO);
-  final imageOr = img.Image.from(imageO);
-    for(int i=0;i<imageO.height;i++){
-      for(int j=0; j<imageO.width~/2;j++){
-        final tmpl =imageO.getPixel(j, i);
-        imageOl.setPixel(imageO.width-1-j,i,tmpl);
-        final tmpr =imageO.getPixel(imageO.width-1-j, i);
-        imageOr.setPixel(j,i,tmpr);
-          
-      }
+    if(result == (null,ImageError.decode)){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("画像読み込みエラー"),
+        ),
+      );
     }
-      
-    setState((){
-      _outImagel = img.encodeJpg(imageOl);
-      _outImager = img.encodeJpg(imageOr);
-      });
+    if(result == (null,ImageError.fileRead)){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("画像を取得できませんでした"),
+        ),
+      );
+    }
+    if(result == (null,ImageError.encode)){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("画像を出力できませんでした"),
+        ),
+      );
+    }
+    if(result == (null,ImageError.change)){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("画像処理に失敗しました"),
+        ),
+      );
+    }
+    
+
+    
+    if(images ==null)return;
+    final (tmpl,tmpr) = images;
+    
+
+   
+   
+    setState(() {
+      _outImagel =tmpl;
+      _outImager = tmpr;    
+      status = Status.success;  
+    });
+    
   }
 
   Future<void> _saveImage(Side a)async{
     if (_outImagel == null && _outImager == null) {
       return;
     }
-
-    if(_outImagel!=null && a==Side.left){
-     await Gal.putImageBytes(_outImagel!,name: 'symmetryL.jpg');
+  
+    try{
+      if(_outImagel!=null && a==Side.left){
+      await Gal.putImageBytes(_outImagel!,name: 'symmetryL.jpg');
+      }
+    }catch(eLdownload){
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("保存に失敗しました"),
+        ),
+      );
+      return;
     }
 
-    if(_outImager !=null && a==Side.right){
-      await Gal.putImageBytes(_outImager!,name: 'symmetryR.jpg');
+    try{
+      if(_outImager !=null && a==Side.right){
+        await Gal.putImageBytes(_outImager!,name: 'symmetryR.jpg');
+      }
+    }catch(eRdownload){
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("保存に失敗しました"),
+        ),
+      );
+
+      return;
     }
 
     if(!mounted)return;
@@ -110,13 +230,14 @@ Widget build(BuildContext context){
   return Scaffold(appBar: AppBar(title: const Text('画像選択'),),
     body: SafeArea( child: 
     Center(child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [
-      if(_inImage==null)
+      if(status == Status.noselect)
         const Text('画像を選択してください')
 
-      else if(_outImager==null||_outImagel==null)
+      else if(status == Status.waiting)
         const Text('画像を加工中です')
-        
-      else
+      else if(status == Status.failed)  
+        const Text('画像加工に失敗しました')
+      else if(status == Status.success)
         Expanded(
           child: Row(
             children:[
